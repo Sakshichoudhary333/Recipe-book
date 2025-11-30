@@ -1,5 +1,6 @@
 -- Recipe Book Application Database Schema
-
+create Database recipe_book;
+use recipe_book;
 -- Users table to manage application users
 CREATE TABLE users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -171,3 +172,16 @@ INSERT INTO meal_types (meal_type_name, description) VALUES
 ('Snack', 'Light snacks and appetizers'),
 ('Dessert', 'Sweet dishes and desserts'),
 ('Beverage', 'Drinks and beverages');
+
+
+
+INSERT INTO users (username, email, password_hash, full_name)
+VALUES
+('sakshi01', 'sakshi@example.com', 'hashed_pass_1', 'Sakshi Choudhary'),
+('john_doe', 'john@example.com', 'hashed_pass_2', 'John Doe'),
+('alice_w', 'alice@example.com', 'hashed_pass_3', 'Alice Walker'),
+('chef_mario', 'mario@example.com', 'hashed_pass_4', 'Mario Rossi'),
+('foodie_raj', 'raj@example.com', 'hashed_pass_5', 'Raj Mehta'),
+('julia_bakes', 'julia@example.com', 'hashed_pass_6', 'Julia Brown'),
+('spicequeen', 'spice@example.com', 'hashed_pass_7', 'Aarti Singh'),
+('matt_cooks', 'matt@example.com', 'hashed_pass_8', 'Matt Carter');

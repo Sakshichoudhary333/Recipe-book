@@ -1,3 +1,24 @@
+import multer from "multer";
+
+// Define where to save uploaded files
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/"); // this folder must exist
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + "-" + file.originalname;
+    cb(null, uniqueName);
+  },
+});
+
+// Create 'upload' using storage
+const upload = multer({ storage });
+
+
+
+
+
+
 import { Router } from "express";
 import {
   createRecipe,
@@ -18,6 +39,8 @@ router.get("/:id", getRecipeById);
 router.post(
   "/",
   authenticateToken,
+  
+  
   [
     body("recipe_name").notEmpty().trim(),
     body("ingredients").isArray(),
