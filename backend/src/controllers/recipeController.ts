@@ -108,106 +108,56 @@ export const getRecipes = async (req: Request, res: Response) => {
   try {
     const { search, cuisine_id, meal_type_id, difficulty_level } = req.query;
 
-    let query = `
-      SELECT r.*, u.username, c.cuisine_name, m.meal_type_name,
-      (SELECT AVG(rating) FROM recipe_ratings WHERE recipe_id = r.recipe_id) as average_rating
-      FROM recipes r
-      JOIN users u ON r.user_id = u.user_id
-      LEFT JOIN cuisines c ON r.cuisine_id = c.cuisine_id
-      LEFT JOIN meal_types m ON r.meal_type_id = m.meal_type_id
-      WHERE 1=1
-    `;
+    const [recipes]:any = await pool.query(
+      `CALL get_recipes(?, ?, ?, ?)`,
+      [
+        search || null,
+        cuisine_id || null,
+        meal_type_id || null,
+        difficulty_level || null
+      ]
+    );
 
-    const params: any[] = [];
-
-    if (search) {
-      query += ` AND (MATCH(r.recipe_name, r.description) AGAINST(? IN NATURAL LANGUAGE MODE) 
-                 OR EXISTS (
-                   SELECT 1 FROM recipe_ingredients ri 
-                   JOIN ingredients i ON ri.ingredient_id = i.ingredient_id 
-                   WHERE ri.recipe_id = r.recipe_id AND MATCH(i.ingredient_name) AGAINST(? IN NATURAL LANGUAGE MODE)
-                 ))`;
-      params.push(search, search);
-    }
-
-    if (cuisine_id) {
-      query += " AND r.cuisine_id = ?";
-      params.push(cuisine_id);
-    }
-
-    if (meal_type_id) {
-      query += " AND r.meal_type_id = ?";
-      params.push(meal_type_id);
-    }
-
-    if (difficulty_level) {
-      query += " AND r.difficulty_level = ?";
-      params.push(difficulty_level);
-    }
-
-    query += " ORDER BY r.created_at DESC";
-
-    const [recipes] = await pool.query(query, params);
-    res.json(recipes);
+    // MySQL returns procedure results inside nested arrays
+    res.json(recipes[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 export const getRecipeById = async (req: Request, res: Response) => {
   try {
     const recipeId = req.params.id;
 
-    const [recipes] = await pool.query<RowDataPacket[]>(
-      `SELECT r.*, u.username, c.cuisine_name, m.meal_type_name,
-      (SELECT AVG(rating) FROM recipe_ratings WHERE recipe_id = r.recipe_id) as average_rating
-       FROM recipes r
-       JOIN users u ON r.user_id = u.user_id
-       LEFT JOIN cuisines c ON r.cuisine_id = c.cuisine_id
-       LEFT JOIN meal_types m ON r.meal_type_id = m.meal_type_id
-       WHERE r.recipe_id = ?`,
-      [recipeId]
-    );
+    const [results]:any = await pool.query(`CALL get_recipe_by_id(?)`, [recipeId]);
 
-    if (recipes.length === 0) {
-      res.status(404).json({ message: "Recipe not found" });
-      return;
+    // Stored procedure result format:
+    // results[0] = recipe
+    // results[1] = ingredients
+    // results[2] = instructions
+    // results[3] = comments
+
+    const recipe:any = results[0][0];
+
+    if (!recipe) {
+      return res.status(404).json({ message: "Recipe not found" });
     }
 
-    const recipe = recipes[0];
+    res.json({
+      ...recipe,
+      ingredients: results[1],
+      instructions: results[2],
+      comments: results[3]
+    });
 
-    // Fetch ingredients
-    const [ingredients] = await pool.query(
-      `SELECT ri.*, i.ingredient_name, i.category 
-       FROM recipe_ingredients ri
-       JOIN ingredients i ON ri.ingredient_id = i.ingredient_id
-       WHERE ri.recipe_id = ?`,
-      [recipeId]
-    );
-
-    // Fetch instructions
-    const [instructions] = await pool.query(
-      `SELECT * FROM recipe_instructions WHERE recipe_id = ? ORDER BY step_number ASC`,
-      [recipeId]
-    );
-
-    // Fetch comments
-    const [comments] = await pool.query(
-      `SELECT rc.*, u.username 
-       FROM recipe_comments rc
-       JOIN users u ON rc.user_id = u.user_id
-       WHERE rc.recipe_id = ?
-       ORDER BY rc.created_at DESC`,
-      [recipeId]
-    );
-
-    res.json({ ...recipe, ingredients, instructions, comments });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 export const updateRecipe = async (req: AuthRequest, res: Response) => {
   const connection = await pool.getConnection();

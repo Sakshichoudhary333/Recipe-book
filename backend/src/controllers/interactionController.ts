@@ -4,6 +4,8 @@ import type { AuthRequest } from "../types";
 import type { RowDataPacket } from "mysql2";
 
 export const addRating = async (req: AuthRequest, res: Response) => {
+  const connection = await pool.getConnection(); // get a dedicated connection for transaction
+
   try {
     const { recipeId } = req.params;
     const { rating } = req.body;
@@ -19,30 +21,42 @@ export const addRating = async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    await connection.beginTransaction(); //  start transaction
+
     // Check if user already rated
-    const [existing] = await pool.query<RowDataPacket[]>(
-      "SELECT rating_id FROM recipe_ratings WHERE recipe_id = ? AND user_id = ?",
+    const [existing]:any = await connection.query<RowDataPacket[]>(
+      "SELECT rating_id FROM recipe_ratings WHERE recipe_id = ? AND user_id = ? FOR UPDATE",
       [recipeId, userId]
     );
 
     if (existing.length > 0) {
-      await pool.query(
+      // Update existing rating
+      await connection.query(
         "UPDATE recipe_ratings SET rating = ? WHERE rating_id = ?",
-        [rating, existing[0]!.rating_id]
+        [rating, existing[0].rating_id]
       );
+
+      await connection.commit(); 
       res.json({ message: "Rating updated" });
     } else {
-      await pool.query(
+      // Add new rating
+      await connection.query(
         "INSERT INTO recipe_ratings (recipe_id, user_id, rating) VALUES (?, ?, ?)",
         [recipeId, userId, rating]
       );
+
+      await connection.commit(); 
       res.status(201).json({ message: "Rating added" });
     }
   } catch (error) {
+    await (connection as any).rollback(); //  rollback on failure
     console.error(error);
     res.status(500).json({ message: "Server error" });
+  } finally {
+    connection.release(); // release connection back to pool
   }
 };
+
 
 export const addComment = async (req: AuthRequest, res: Response) => {
   try {
